@@ -34,7 +34,9 @@
 
 # Use cache files for fab tasks or not.
 # If set to "false" command "fab --shortlist" will be executed every time.
-export FAB_COMPLETION_CACHE_TASKS=true
+export FAB_COMPLETION_CACHE_TASKS=false
+# TODO: make cache works.
+# export FAB_COMPLETION_CACHE_TASKS=true
 
 # File name where tasks cache will be stored (in current dir).
 export FAB_COMPLETION_CACHED_TASKS_FILENAME=".fab_tasks~"
@@ -64,7 +66,8 @@ function __fab_chache_mtime() {
 # Get time of last fabfile file/module modification as seconds since Epoch
 #
 function __fab_fabfile_mtime() {
-    local f="fabfile"
+    local r=$(__find_fabfile_folder)
+    local f="$r""fabfile"
     if [[ -e "$f.py" ]]; then
         ${__FAB_COMPLETION_MTIME_COMMAND} "$f.py" | xargs -n 1 expr
     else
@@ -72,6 +75,19 @@ function __fab_fabfile_mtime() {
         find $f/*.py -exec ${__FAB_COMPLETION_MTIME_COMMAND} {} + \
             | xargs -n 1 expr | sort -n -r | head -1
     fi
+}
+
+# TODO: Infinite loop if no fabfile is founded.
+function __find_fabfile_folder() {
+    # If "fabfile.py" or "fabfile" dir with "__init__.py" file exists
+    local f="fabfile"
+    local r="./"
+
+    until [[ -d "$r" && (-e "$r$f.py" || (-d "$r$f" && -e "$r$f/__init__.py")) ]]; do
+        r="$r../"
+    done
+
+    echo "$r"
 }
 
 
@@ -108,17 +124,19 @@ function __fab_completion() {
 
         *)
             # If "fabfile.py" or "fabfile" dir with "__init__.py" file exists
-            local f="fabfile"
-            if [[ -e "$f.py" || (-d "$f" && -e "$f/__init__.py") ]]; then
+            local r=$(__find_fabfile_folder)
+            local f="$r""fabfile"
+
+            if [ "$f" != "" ]; then
                 # Build a list of the available tasks
                 if $FAB_COMPLETION_CACHE_TASKS; then
                     # If use cache
-                    if [[ ! -s ${FAB_COMPLETION_CACHED_TASKS_FILENAME} ||
+                    if [[ ! -s $r${FAB_COMPLETION_CACHED_TASKS_FILENAME} ||
                           $(__fab_fabfile_mtime) -gt $(__fab_chache_mtime) ]]; then
-                        fab --shortlist > ${FAB_COMPLETION_CACHED_TASKS_FILENAME} \
+                        fab --shortlist > $r${FAB_COMPLETION_CACHED_TASKS_FILENAME} \
                             2> /dev/null
                     fi
-                    opts=$(cat ${FAB_COMPLETION_CACHED_TASKS_FILENAME})
+                    opts=$(cat $r${FAB_COMPLETION_CACHED_TASKS_FILENAME})
                 else
                     # Without cache
                     opts=$(fab --shortlist 2> /dev/null)
